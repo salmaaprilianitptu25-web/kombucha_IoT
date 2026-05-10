@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kombucha Monitoring Final - Salma</title>
+    <title>IOT SYSTEM FERMENTASI KOMBUCHA Kelompok 8</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -17,6 +17,11 @@
         .btn-start { background: var(--green); }
         .btn-stop { background: var(--red); }
         .btn-excel { background: #217346; }
+
+        /* Badge Status */
+        .status-badge { padding: 8px 20px; border-radius: 50px; color: white; font-weight: bold; display: inline-block; margin-bottom: 15px; font-size: 16px; }
+        .bg-running { background: var(--green); }
+        .bg-stopped { background: var(--red); }
 
         .interval-box { display: inline-flex; align-items: center; border: 2px solid #bcd0e7; border-radius: 50px; padding: 5px 15px; background: #f8faff; }
         .interval-box input { border: none; width: 45px; text-align: center; font-size: 16px; font-weight: bold; color: var(--blue); outline: none; background: transparent; }
@@ -51,7 +56,10 @@
         <button class="close-btn" onclick="tutupAlarm()">TUTUP ALARM</button>
     </div>
 
-    <h2 style="color: var(--blue);">IOT SYSTEM FERMENTASI KOMBUCHA</h2>
+    <h2 style="color: var(--blue);">IOT SYSTEM FERMENTASI KOMBUCHA KELOMPOK 8</h2>
+    
+    <div id="indicatorStatus" class="status-badge bg-stopped">STATUS: STOPPED</div>
+    
     <p id="audioStatus" style="font-size: 11px; color: #777;">*Klik layar sekali saat mulai untuk mengaktifkan audio otomatis*</p>
 
     <div class="nav-container">
@@ -96,13 +104,11 @@
 
         let audioUnlocked = false, alarmDismis = false, intervalTimer = 5000, loopInterval;
 
-        // BUKA KUNCI AUDIO (Wajib diklik sekali saat web terbuka)
         function bukaKunciAudio() {
             if(!audioUnlocked) {
                 audioUnlocked = true;
                 document.getElementById("audioStatus").innerText = "✅ Audio Siap (Otomatis)";
                 document.getElementById("audioStatus").style.color = "green";
-                // Pancingan suara kosong
                 window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
             }
         }
@@ -111,7 +117,6 @@
         function setPower(v) { db.ref("kombucha/power").set(v); }
         function updateInterval() { intervalTimer = document.getElementById("inputDetik").value * 1000; clearInterval(loopInterval); mulaiSiklus(); }
 
-        // Setup 3 Grafik Terpisah
         const ctx1 = document.getElementById('chartT1').getContext('2d');
         const ctx2 = document.getElementById('chartT2').getContext('2d');
         const ctx3 = document.getElementById('chartCO2').getContext('2d');
@@ -120,7 +125,6 @@
         const chartT2 = new Chart(ctx2, { type: 'line', data: { labels: [], datasets: [{ label: 'Suhu T2', data: [], borderColor: 'blue', fill: false }] } });
         const chartCO2 = new Chart(ctx3, { type: 'line', data: { labels: [], datasets: [{ label: 'Kadar CO2', data: [], borderColor: 'green', fill: true, backgroundColor: 'rgba(39,174,96,0.1)' }] } });
 
-        // Monitoring Realtime
         db.ref("kombucha").on("value", (snap) => {
             const data = snap.val(); if(!data) return;
             const s1 = parseFloat(data.temperature1 || 0);
@@ -134,7 +138,16 @@
             document.getElementById("kondisi").innerText = (s1 >= 24 && s1 <= 28) ? "STABIL" : "BAHAYA";
             document.getElementById("kondisi").style.color = (s1 >= 24 && s1 <= 28) ? "green" : "red";
 
-            // LOGIKA BAHAYA & SUARA OTOMATIS
+            // UPDATE INDIKATOR STATUS
+            const indicator = document.getElementById("indicatorStatus");
+            if(pwr === 1) {
+                indicator.innerText = "STATUS: RUNNING";
+                indicator.className = "status-badge bg-running";
+            } else {
+                indicator.innerText = "STATUS: STOPPED";
+                indicator.className = "status-badge bg-stopped";
+            }
+
             const overlay = document.getElementById("overlayBahaya");
             if (s1 < 24.0 || s1 > 28.0) {
                 if(!alarmDismis) {
@@ -152,12 +165,8 @@
             }
         });
 
-        // Siklus Grafik & Tabel (Terkunci Tombol Start/Stop)
         function mulaiSiklus() {
             loopInterval = setInterval(() => {
-                // Ambil status power langsung dari tampilan (yg disinkronkan Firebase)
-                const statusAktuator = document.getElementById("kondisi").parentElement.parentElement.querySelector('.nav-container button.btn-stop'); 
-                // Cek status power dari Firebase via status text
                 db.ref("kombucha/power").once("value", (s) => {
                     if (s.val() === 1) {
                         const t = new Date().toLocaleTimeString();
@@ -165,14 +174,12 @@
                         const v2 = document.getElementById("t2").innerText;
                         const c = document.getElementById("gas").innerText;
 
-                        // Update Charts
                         [chartT1, chartT2, chartCO2].forEach(chart => { if(chart.data.labels.length > 10) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); } });
                         
                         chartT1.data.labels.push(t); chartT1.data.datasets[0].data.push(parseFloat(v1)); chartT1.update();
                         chartT2.data.labels.push(t); chartT2.data.datasets[0].data.push(parseFloat(v2)); chartT2.update();
                         chartCO2.data.labels.push(t); chartCO2.data.datasets[0].data.push(parseFloat(c)); chartCO2.update();
 
-                        // Update Table
                         const row = `<tr><td>${t}</td><td>${v1}</td><td>${v2}</td><td>${c}</td><td><b style="color:green">START</b></td></tr>`;
                         document.getElementById("logTable").insertAdjacentHTML('afterbegin', row);
                         if(document.getElementById("logTable").rows.length > 5) document.getElementById("logTable").deleteRow(5);
