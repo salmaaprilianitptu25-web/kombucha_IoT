@@ -53,7 +53,7 @@
     <div id="overlayBahaya">
         <h1 style="font-size: 80px; margin: 0;">⚠️ BAHAYA! ⚠️</h1>
         <h2 id="teksBahaya" style="font-size: 30px;">MEMBACA DATA...</h2>
-        <button class="close-btn" onclick="tutupAlarm()">TUTUP ALARM</button>
+        <button class="close-btn" onclick="tutupTampilan()">TUTUP TAMPILAN</button>
     </div>
 
     <h2 style="color: var(--blue);">IOT SYSTEM FERMENTASI KOMBUCHA KELOMPOK 8</h2>
@@ -102,31 +102,31 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let audioUnlocked = false, alarmDismis = false, intervalTimer = 5000, loopInterval;
+        let audioUnlocked = false, overlayDismis = false, intervalTimer = 5000, loopInterval;
 
-        // FUNGSI KHUSUS BICARA BERULANG (LOOPING)
         function panggilRobot(teks) {
-            if (!audioUnlocked || alarmDismis) return;
+            if (!audioUnlocked) return;
             
-            window.speechSynthesis.cancel(); // Bersihkan antrean lama
-            let msg = new SpeechSynthesisUtterance(teks);
-            let voices = window.speechSynthesis.getVoices();
-            let idVoice = voices.find(v => v.lang.includes('id-ID'));
-            
-            if (idVoice) { msg.voice = idVoice; msg.lang = 'id-ID'; } 
-            else { msg.lang = 'en-US'; }
-            
-            msg.rate = 1.0; msg.volume = 1.0;
+            // Supaya tidak menumpuk, kita hanya panggil bicara jika sedang tidak bicara
+            if (!window.speechSynthesis.speaking) {
+                let msg = new SpeechSynthesisUtterance(teks);
+                let voices = window.speechSynthesis.getVoices();
+                let idVoice = voices.find(v => v.lang.includes('id-ID'));
+                
+                if (idVoice) { msg.voice = idVoice; msg.lang = 'id-ID'; } 
+                else { msg.lang = 'en-US'; }
+                
+                msg.rate = 1.0; msg.volume = 1.0;
 
-            // KUNCI AGAR BISA BERULANG: Saat selesai bicara, cek kondisi lagi
-            msg.onend = function() {
-                let kondText = document.getElementById("kondisi").innerText;
-                if (kondText === "BAHAYA" && !alarmDismis) {
-                    setTimeout(() => { panggilRobot(teks); }, 1000); // Bicara lagi setelah jeda 1 detik
-                }
-            };
-
-            window.speechSynthesis.speak(msg);
+                // Logika looping: selama kondisi masih BAHAYA, panggil robot lagi setelah selesai satu kalimat
+                msg.onend = function() {
+                    let kondText = document.getElementById("kondisi").innerText;
+                    if (kondText === "BAHAYA") {
+                        setTimeout(() => { panggilRobot(teks); }, 1000);
+                    }
+                };
+                window.speechSynthesis.speak(msg);
+            }
         }
 
         function bukaKunciAudio() {
@@ -138,10 +138,10 @@
             }
         }
 
-        function tutupAlarm() { 
-            alarmDismis = true; 
+        // Fungsi baru: Hanya menutup tampilan overlay merah, bukan mematikan suara
+        function tutupTampilan() { 
+            overlayDismis = true; 
             document.getElementById("overlayBahaya").style.display = "none"; 
-            window.speechSynthesis.cancel(); 
         }
 
         function setPower(v) { db.ref("kombucha/power").set(v); }
@@ -171,10 +171,23 @@
             if (isBahaya) {
                 document.getElementById("kondisi").innerText = "BAHAYA";
                 document.getElementById("kondisi").style.color = "red";
+                
+                if(!overlayDismis) {
+                    document.getElementById("overlayBahaya").style.display = "block";
+                }
+                document.getElementById("teksBahaya").innerText = "T1: " + s1.toFixed(1) + "°C | Suhu T2: " + s2.toFixed(1) + "°C";
+                
+                // Panggil robot, robot akan otomatis looping selama kondisi di atas masih "BAHAYA"
+                panggilRobot("Peringatan, suhu bahaya!");
+
             } else {
                 document.getElementById("kondisi").innerText = "STABIL";
                 document.getElementById("kondisi").style.color = "green";
-                alarmDismis = false; // Reset agar bisa bunyi lagi nanti
+                document.getElementById("overlayBahaya").style.display = "none";
+                
+                // RESET: Suara langsung dimatikan saat kondisi STABIL
+                overlayDismis = false; 
+                window.speechSynthesis.cancel(); 
             }
 
             const indicator = document.getElementById("indicatorStatus");
@@ -184,22 +197,6 @@
             } else {
                 indicator.innerText = "STATUS: STOPPED";
                 indicator.className = "status-badge bg-stopped";
-            }
-
-            const overlay = document.getElementById("overlayBahaya");
-            if (isBahaya) {
-                if(!alarmDismis) {
-                    overlay.style.display = "block";
-                    document.getElementById("teksBahaya").innerText = "Suhu T1: " + s1.toFixed(1) + "°C | Suhu T2: " + s2.toFixed(1) + "°C";
-                    
-                    // Panggil robot jika sedang diam
-                    if(!window.speechSynthesis.speaking) {
-                        panggilRobot("Peringatan, suhu bahaya!");
-                    }
-                }
-            } else {
-                overlay.style.display = "none";
-                window.speechSynthesis.cancel();
             }
         });
 
@@ -213,7 +210,6 @@
                         const c = document.getElementById("gas").innerText;
 
                         [chartT1, chartT2, chartCO2].forEach(chart => { if(chart.data.labels.length > 10) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); } });
-                        
                         chartT1.data.labels.push(t); chartT1.data.datasets[0].data.push(parseFloat(v1)); chartT1.update();
                         chartT2.data.labels.push(t); chartT2.data.datasets[0].data.push(parseFloat(v2)); chartT2.update();
                         chartCO2.data.labels.push(t); chartCO2.data.datasets[0].data.push(parseFloat(c)); chartCO2.update();
