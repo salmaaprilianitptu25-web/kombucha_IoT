@@ -52,7 +52,7 @@
 
     <div id="overlayBahaya">
         <h1 style="font-size: 80px; margin: 0;">⚠️ BAHAYA! ⚠️</h1>
-        <h2 id="teksBahaya" style="font-size: 30px;">SUHU DI LUAR KENDALI</h2>
+        <h2 id="teksBahaya" style="font-size: 30px;">MEMBACA DATA...</h2>
         <button class="close-btn" onclick="tutupAlarm()">TUTUP ALARM</button>
     </div>
 
@@ -104,15 +104,37 @@
 
         let audioUnlocked = false, alarmDismis = false, intervalTimer = 5000, loopInterval;
 
+        // FUNGSI KHUSUS BICARA BERULANG (LOOPING)
+        function panggilRobot(teks) {
+            if (!audioUnlocked || alarmDismis) return;
+            
+            window.speechSynthesis.cancel(); // Bersihkan antrean lama
+            let msg = new SpeechSynthesisUtterance(teks);
+            let voices = window.speechSynthesis.getVoices();
+            let idVoice = voices.find(v => v.lang.includes('id-ID'));
+            
+            if (idVoice) { msg.voice = idVoice; msg.lang = 'id-ID'; } 
+            else { msg.lang = 'en-US'; }
+            
+            msg.rate = 1.0; msg.volume = 1.0;
+
+            // KUNCI AGAR BISA BERULANG: Saat selesai bicara, cek kondisi lagi
+            msg.onend = function() {
+                let kondText = document.getElementById("kondisi").innerText;
+                if (kondText === "BAHAYA" && !alarmDismis) {
+                    setTimeout(() => { panggilRobot(teks); }, 1000); // Bicara lagi setelah jeda 1 detik
+                }
+            };
+
+            window.speechSynthesis.speak(msg);
+        }
+
         function bukaKunciAudio() {
             if(!audioUnlocked) {
                 audioUnlocked = true;
                 document.getElementById("audioStatus").innerText = "✅ Audio Siap (Otomatis)";
                 document.getElementById("audioStatus").style.color = "green";
-                // Pancingan suara pelan agar browser mengizinkan akses audio selanjutnya
-                let pancing = new SpeechSynthesisUtterance("Sistem Aktif");
-                pancing.volume = 0.1; pancing.lang = "id-ID";
-                window.speechSynthesis.speak(pancing);
+                panggilRobot("Sistem Aktif");
             }
         }
 
@@ -152,11 +174,9 @@
             } else {
                 document.getElementById("kondisi").innerText = "STABIL";
                 document.getElementById("kondisi").style.color = "green";
-                // Reset alarmDismis jika suhu sudah kembali stabil
-                alarmDismis = false;
+                alarmDismis = false; // Reset agar bisa bunyi lagi nanti
             }
 
-            // UPDATE INDIKATOR STATUS
             const indicator = document.getElementById("indicatorStatus");
             if(pwr === 1) {
                 indicator.innerText = "STATUS: RUNNING";
@@ -172,11 +192,9 @@
                     overlay.style.display = "block";
                     document.getElementById("teksBahaya").innerText = "Suhu T1: " + s1.toFixed(1) + "°C | Suhu T2: " + s2.toFixed(1) + "°C";
                     
-                    // PERBAIKAN AUDIO: Jika audioUnlocked dan tidak sedang bicara, panggil fungsi bicara
-                    if(audioUnlocked && !window.speechSynthesis.speaking) {
-                        let m = new SpeechSynthesisUtterance("Peringatan, suhu bahaya!");
-                        m.lang = "id-ID";
-                        window.speechSynthesis.speak(m);
+                    // Panggil robot jika sedang diam
+                    if(!window.speechSynthesis.speaking) {
+                        panggilRobot("Peringatan, suhu bahaya!");
                     }
                 }
             } else {
@@ -207,6 +225,8 @@
                 });
             }, intervalTimer);
         }
+        
+        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
         mulaiSiklus();
     </script>
 </body>
