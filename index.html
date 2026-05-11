@@ -52,7 +52,7 @@
 
     <div id="overlayBahaya">
         <h1 style="font-size: 80px; margin: 0;">⚠️ BAHAYA! ⚠️</h1>
-        <h2 id="teksBahaya" style="font-size: 30px;">SUHU DI LUAR KENDALI</h2>
+        <h2 id="teksBahaya" style="font-size: 30px;">MEMBACA DATA...</h2>
         <button class="close-btn" onclick="tutupAlarm()">TUTUP ALARM</button>
     </div>
 
@@ -135,8 +135,15 @@
             document.getElementById("t1").innerText = s1.toFixed(1) + "°C";
             document.getElementById("t2").innerText = s2.toFixed(1) + "°C";
             document.getElementById("gas").innerText = co2 + " PPM";
-            document.getElementById("kondisi").innerText = (s1 >= 24 && s1 <= 28) ? "STABIL" : "BAHAYA";
-            document.getElementById("kondisi").style.color = (s1 >= 24 && s1 <= 28) ? "green" : "red";
+            
+            // Logika Kondisi: BAHAYA jika T1 atau T2 di luar rentang
+            if ((s1 < 24 || s1 > 28) || (s2 < 24 || s2 > 28)) {
+                document.getElementById("kondisi").innerText = "BAHAYA";
+                document.getElementById("kondisi").style.color = "red";
+            } else {
+                document.getElementById("kondisi").innerText = "STABIL";
+                document.getElementById("kondisi").style.color = "green";
+            }
 
             // UPDATE INDIKATOR STATUS
             const indicator = document.getElementById("indicatorStatus");
@@ -149,10 +156,13 @@
             }
 
             const overlay = document.getElementById("overlayBahaya");
-            if (s1 < 24.0 || s1 > 28.0) {
+            // Cek Bahaya untuk T1 ATAU T2
+            if ((s1 < 24.0 || s1 > 28.0) || (s2 < 24.0 || s2 > 28.0)) {
                 if(!alarmDismis) {
                     overlay.style.display = "block";
-                    document.getElementById("teksBahaya").innerText = "Suhu Toples 1: " + s1.toFixed(1) + "°C";
+                    // UPDATE: Menampilkan Suhu T1 dan T2 di overlay
+                    document.getElementById("teksBahaya").innerText = "Suhu T1: " + s1.toFixed(1) + "°C | Suhu T2: " + s2.toFixed(1) + "°C";
+                    
                     if(audioUnlocked && !window.speechSynthesis.speaking) {
                         let m = new SpeechSynthesisUtterance("Peringatan, suhu bahaya!");
                         m.lang = "id-ID"; window.speechSynthesis.speak(m);
