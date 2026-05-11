@@ -52,7 +52,7 @@
 
     <div id="overlayBahaya">
         <h1 style="font-size: 80px; margin: 0;">⚠️ BAHAYA! ⚠️</h1>
-        <h2 id="teksBahaya" style="font-size: 30px;">MEMBACA DATA...</h2>
+        <h2 id="teksBahaya" style="font-size: 30px;">SUHU DI LUAR KENDALI</h2>
         <button class="close-btn" onclick="tutupAlarm()">TUTUP ALARM</button>
     </div>
 
@@ -109,11 +109,19 @@
                 audioUnlocked = true;
                 document.getElementById("audioStatus").innerText = "✅ Audio Siap (Otomatis)";
                 document.getElementById("audioStatus").style.color = "green";
-                window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+                // Pancingan suara pelan agar browser mengizinkan akses audio selanjutnya
+                let pancing = new SpeechSynthesisUtterance("Sistem Aktif");
+                pancing.volume = 0.1; pancing.lang = "id-ID";
+                window.speechSynthesis.speak(pancing);
             }
         }
 
-        function tutupAlarm() { alarmDismis = true; document.getElementById("overlayBahaya").style.display = "none"; window.speechSynthesis.cancel(); }
+        function tutupAlarm() { 
+            alarmDismis = true; 
+            document.getElementById("overlayBahaya").style.display = "none"; 
+            window.speechSynthesis.cancel(); 
+        }
+
         function setPower(v) { db.ref("kombucha/power").set(v); }
         function updateInterval() { intervalTimer = document.getElementById("inputDetik").value * 1000; clearInterval(loopInterval); mulaiSiklus(); }
 
@@ -136,13 +144,16 @@
             document.getElementById("t2").innerText = s2.toFixed(1) + "°C";
             document.getElementById("gas").innerText = co2 + " PPM";
             
-            // Logika Kondisi: BAHAYA jika T1 atau T2 di luar rentang
-            if ((s1 < 24 || s1 > 28) || (s2 < 24 || s2 > 28)) {
+            const isBahaya = (s1 < 24 || s1 > 28) || (s2 < 24 || s2 > 28);
+            
+            if (isBahaya) {
                 document.getElementById("kondisi").innerText = "BAHAYA";
                 document.getElementById("kondisi").style.color = "red";
             } else {
                 document.getElementById("kondisi").innerText = "STABIL";
                 document.getElementById("kondisi").style.color = "green";
+                // Reset alarmDismis jika suhu sudah kembali stabil
+                alarmDismis = false;
             }
 
             // UPDATE INDIKATOR STATUS
@@ -156,21 +167,20 @@
             }
 
             const overlay = document.getElementById("overlayBahaya");
-            // Cek Bahaya untuk T1 ATAU T2
-            if ((s1 < 24.0 || s1 > 28.0) || (s2 < 24.0 || s2 > 28.0)) {
+            if (isBahaya) {
                 if(!alarmDismis) {
                     overlay.style.display = "block";
-                    // UPDATE: Menampilkan Suhu T1 dan T2 di overlay
                     document.getElementById("teksBahaya").innerText = "Suhu T1: " + s1.toFixed(1) + "°C | Suhu T2: " + s2.toFixed(1) + "°C";
                     
+                    // PERBAIKAN AUDIO: Jika audioUnlocked dan tidak sedang bicara, panggil fungsi bicara
                     if(audioUnlocked && !window.speechSynthesis.speaking) {
                         let m = new SpeechSynthesisUtterance("Peringatan, suhu bahaya!");
-                        m.lang = "id-ID"; window.speechSynthesis.speak(m);
+                        m.lang = "id-ID";
+                        window.speechSynthesis.speak(m);
                     }
                 }
             } else {
                 overlay.style.display = "none";
-                alarmDismis = false;
                 window.speechSynthesis.cancel();
             }
         });
